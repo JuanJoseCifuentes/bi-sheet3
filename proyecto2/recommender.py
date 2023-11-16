@@ -1,5 +1,3 @@
-import random
-
 def eclat(db, minsup):
     def generate_frequent_itemsets(P, minsup, F):
         for i, p_i in enumerate(P):
@@ -43,7 +41,7 @@ def eclat(db, minsup):
 def getStrongRulesFromFrequentSets(fsets, minconf):
     strong_rules = []
     fsets_sets = [item[0] for item in fsets]
-    fsets_sup = [item[1] for item in fsets]
+    fsets_supp = [item[1] for item in fsets]
     for i, frequentSet in enumerate(fsets_sets):
         if len(frequentSet) >= 2:
             A = getSubsets(set=frequentSet)
@@ -51,12 +49,12 @@ def getStrongRulesFromFrequentSets(fsets, minconf):
                 X = A[-1]
                 A.remove(X)
                 index_x = fsets_sets.index(X)
-                c = fsets_sup[i] / fsets_sup[index_x]
+                c = fsets_supp[i] / fsets_supp[index_x]
                 if c >= minconf:
                     Y = list(frequentSet)
                     for item in X:
                         Y.remove(item)
-                    strong_rules.append((X, Y, fsets_sup[i], c))
+                    strong_rules.append((X, Y, fsets_supp[i], c))
                 else:
                     if len(X) >= 2:
                         W_sets = getSubsets(X)
@@ -100,7 +98,7 @@ class Recommender:
             :return: the object should return itself here (this is actually important!)
         """
         
-        rules_db = getStrongRulesForDatabase(db=database, minsup=0.01*len(database), minconf=0.1)
+        rules_db = getStrongRulesForDatabase(db=database, minsup=0.005*len(database), minconf=0.1)
         premises, conclusions, sup, conf = [], [], [], []
 
         for item in rules_db:
@@ -109,8 +107,7 @@ class Recommender:
             sup.append(item[2])
             conf.append(item[3])
         
-        temp_rules = list(zip(premises,conclusions))
-        for i, rule in enumerate(temp_rules):
+        for i, rule in enumerate(list(zip(premises,conclusions))):
             self.rules[rule] = (sup[i], conf[i])
 
         for i, price in enumerate(prices):
@@ -133,18 +130,26 @@ class Recommender:
             premises.append(list(rule[0]))
             conclussions.append(list(rule[1]))
 
-        possible_recommendations = [0]
+        possible_recommendations = []
         for i, premise in enumerate(premises):
             if (all(x in cart for x in premise)):
-                for x in conclussions[i]:
-                    possible_recommendations.append(x)
+                possible_recommendations.append((conclussions[i], self.rules[(tuple(premise), tuple(conclussions[i]))][1]))
+        possible_recommendations = sorted(possible_recommendations, key=lambda x:x[1])
 
-        possible_recommendations = list(set(possible_recommendations))
         recomendations = []
-        for i in range(max_recommendations):
-            if len(possible_recommendations) > 1:
-                print(possible_recommendations)
-                recomendations.append(possible_recommendations.pop(random.randint(0, len(possible_recommendations)-1)))
+        i=0
+        while i < max_recommendations:
+            if len(possible_recommendations) == 0:
+                break
+
+            if possible_recommendations[-1][0][0] not in recomendations:
+                recomendations.append(possible_recommendations[-1][0].pop(0))
+                i = i + 1
+            else:
+                possible_recommendations[-1][0].pop(0)
+                
+            if len(possible_recommendations[-1][0]) == 0:
+                possible_recommendations.pop(-1)
 
         if len(recomendations) > 0:
             return recomendations
