@@ -55,10 +55,13 @@ def getStrongRulesFromFrequentSets(fsets, minconf):
                     Y = list(frequentSet)
                     for item in X:
                         Y.remove(item)
+                        
+                    conviction_denominator = 1 - c
+                    conviction = (1 - fsets_supp[fsets_sets.index(X)]) / conviction_denominator
 
                     lift_denominator = fsets_supp[fsets_sets.index(X)]
                     lift = c / lift_denominator
-                    strong_rules.append((X, Y, fsets_supp[i], c, lift))
+                    strong_rules.append((X, Y, fsets_supp[i], c, lift, conviction))
                 else:
                     if len(X) >= 2:
                         W_sets = getSubsets(X)
@@ -102,8 +105,8 @@ class Recommender:
             :return: the object should return itself here (this is actually important!)
         """
         
-        rules_db = getStrongRulesForDatabase(db=database, minsup=0.005*len(database), minconf=0.1)
-        premises, conclusions, sup, conf, lift = [], [], [], [], []
+        rules_db = getStrongRulesForDatabase(db=database, minsup=0.003*len(database), minconf=0.1)
+        premises, conclusions, sup, conf, lift, conviction = [], [], [], [], [], []
 
         for rule in rules_db:
             premises.append(tuple(rule[0]))
@@ -111,10 +114,11 @@ class Recommender:
             sup.append(rule[2])
             conf.append(rule[3])
             lift.append(rule[4])
+            conviction.append(rule[5])
         
         temp_rules = list(zip(premises,conclusions))
         for i, rule in enumerate(temp_rules):
-            self.rules[rule] = (sup[i], conf[i], lift[i])
+            self.rules[rule] = (sup[i], conf[i], lift[i], conviction[i])
 
         for i, price in enumerate(prices):
             self.prices[i] = price
