@@ -51,10 +51,14 @@ def getStrongRulesFromFrequentSets(fsets, minconf):
                 index_x = fsets_sets.index(X)
                 c = fsets_supp[i] / fsets_supp[index_x]
                 if c >= minconf:
+                    #Y is the complement of X in the set frequentSet
                     Y = list(frequentSet)
                     for item in X:
                         Y.remove(item)
-                    strong_rules.append((X, Y, fsets_supp[i], c))
+
+                    lift_denominator = fsets_supp[fsets_sets.index(X)]
+                    lift = c / lift_denominator
+                    strong_rules.append((X, Y, fsets_supp[i], c, lift))
                 else:
                     if len(X) >= 2:
                         W_sets = getSubsets(X)
@@ -99,16 +103,18 @@ class Recommender:
         """
         
         rules_db = getStrongRulesForDatabase(db=database, minsup=0.005*len(database), minconf=0.1)
-        premises, conclusions, sup, conf = [], [], [], []
+        premises, conclusions, sup, conf, lift = [], [], [], [], []
 
-        for item in rules_db:
-            premises.append(tuple(item[0]))
-            conclusions.append(tuple(item[1]))
-            sup.append(item[2])
-            conf.append(item[3])
+        for rule in rules_db:
+            premises.append(tuple(rule[0]))
+            conclusions.append(tuple(rule[1]))
+            sup.append(rule[2])
+            conf.append(rule[3])
+            lift.append(rule[4])
         
-        for i, rule in enumerate(list(zip(premises,conclusions))):
-            self.rules[rule] = (sup[i], conf[i])
+        temp_rules = list(zip(premises,conclusions))
+        for i, rule in enumerate(temp_rules):
+            self.rules[rule] = (sup[i], conf[i], lift[i])
 
         for i, price in enumerate(prices):
             self.prices[i] = price
@@ -130,28 +136,47 @@ class Recommender:
             premises.append(list(rule[0]))
             conclussions.append(list(rule[1]))
 
+        #Gets only the conclusions in which the cart is a subset or equal to the premise
         possible_recommendations = []
         for i, premise in enumerate(premises):
             if (all(x in cart for x in premise)):
-                possible_recommendations.append((conclussions[i], self.rules[(tuple(premise), tuple(conclussions[i]))][1]))
+                possible_recommendations.append((conclussions[i], self.rules[(tuple(premise), tuple(conclussions[i]))][2]))
         possible_recommendations = sorted(possible_recommendations, key=lambda x:x[1])
 
-        recomendations = []
+        #Gets the (at least) 10 best items according to our evaluation and sorts them by price
+        best_recommendations = []
+        best_recommendations_prices = []
+
+        print(possible_recommendations[-20:])
+
+        for i in range(len(possible_recommendations)):
+            if len(best_recommendations) >= 10:
+                break
+            
+            #Add the items in the best rule
+            for item in possible_recommendations[-1][0]:
+                if item not in best_recommendations:
+                    best_recommendations.append(item)
+                    best_recommendations_prices.append(self.prices[item])
+                possible_recommendations[-1][0].remove(item)
+                
+            possible_recommendations.pop(-1)
+        
+        best_recommendations = [x for _, x in sorted(zip(best_recommendations_prices, best_recommendations), key=lambda pair: pair[0])]
+
+        recommendations = []
         i=0
         while i < max_recommendations:
-            if len(possible_recommendations) == 0:
+            if len(best_recommendations) == 0:
                 break
 
-            if possible_recommendations[-1][0][0] not in recomendations:
-                recomendations.append(possible_recommendations[-1][0].pop(0))
+            if best_recommendations[-1] not in recommendations:
+                recommendations.append(best_recommendations.pop(-1))
                 i = i + 1
             else:
-                possible_recommendations[-1][0].pop(0)
-                
-            if len(possible_recommendations[-1][0]) == 0:
-                possible_recommendations.pop(-1)
+                best_recommendations.pop(-1)
 
-        if len(recomendations) > 0:
-            return recomendations
+        if len(recommendations) > 0:
+            return recommendations
         else:
             return[0]
