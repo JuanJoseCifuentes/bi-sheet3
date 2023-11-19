@@ -1,3 +1,4 @@
+#GET FREQUENT ITEMSETS
 def eclat(db, minsup):
     def generate_frequent_itemsets(P, minsup, F):
         for i, p_i in enumerate(P):
@@ -38,7 +39,47 @@ def eclat(db, minsup):
 
     return [(F[i][0], F[i][1]) for i in range(len(F))]
 
-def getStrongRulesFromFrequentSets(fsets, minconf):
+
+#METRICS
+def getConfidence(sup_xy, sup_x):
+    return sup_xy / sup_x
+
+def getLift(conf, sup_y, len_database):
+    rsup_y = sup_y / len_database
+    lift = conf / rsup_y
+    return lift
+
+def getLeverage(sup_xy, sup_x, sup_y, len_database):
+    rsup_xy = sup_xy / len_database
+    rsup_x = sup_x / len_database
+    rsup_y = sup_y / len_database
+
+    leverage = rsup_xy - (rsup_x * rsup_y)
+    return leverage
+
+def getJaccard(sup_xy, sup_x, sup_y):
+    jaccard_denominator = sup_x + sup_y - sup_xy
+    jaccard = sup_xy / jaccard_denominator
+    return jaccard
+
+def getConviction(conf, sup_y, len_database):
+    rsup_y = sup_y / len_database
+    conviction_denominator = 1 - conf
+    conviction = (1 - rsup_y) / conviction_denominator
+    return conviction
+
+def getOddsRatio(sup_xy, sup_x, sup_y, len_database):
+    sup_nox_y = sup_y - sup_xy
+    sup_x_noy = sup_x - sup_xy
+    sup_nox_noy = len_database - sup_xy - sup_nox_y - sup_x_noy
+
+    odds_denominator = sup_x_noy * sup_nox_y
+    odds = (sup_xy * sup_nox_noy) / odds_denominator
+    return odds
+
+
+#GET RULES
+def getStrongRulesFromFrequentSets(fsets, minconf, len_database):
     strong_rules = []
     fsets_sets = [item[0] for item in fsets]
     fsets_supp = [item[1] for item in fsets]
@@ -48,20 +89,28 @@ def getStrongRulesFromFrequentSets(fsets, minconf):
             while len(A) != 0:
                 X = A[-1]
                 A.remove(X)
+
+                sup_xy = fsets_supp[i]
+                
                 index_x = fsets_sets.index(X)
-                c = fsets_supp[i] / fsets_supp[index_x]
-                if c >= minconf:
+                sup_x = fsets_supp[index_x]
+
+                conf = getConfidence(sup_xy, sup_x)
+                if conf >= minconf:
                     #Y is the complement of X in the set frequentSet
                     Y = list(frequentSet)
                     for item in X:
                         Y.remove(item)
-                        
-                    conviction_denominator = 1 - c
-                    conviction = (1 - fsets_supp[fsets_sets.index(X)]) / conviction_denominator
 
-                    lift_denominator = fsets_supp[fsets_sets.index(X)]
-                    lift = c / lift_denominator
-                    strong_rules.append((X, Y, fsets_supp[i], c, lift, conviction))
+                    sup_y = fsets_supp[fsets_sets.index(Y)]
+
+                    lift = getLift(conf, sup_y, len_database)
+                    lev = getLeverage(sup_xy, sup_x, sup_y, len_database)
+                    jacc = getJaccard(sup_xy, sup_x, sup_y)
+                    conv = getConviction(conf, sup_y, len_database)
+                    odds = getOddsRatio(sup_xy, sup_x, sup_y, len_database)
+
+                    strong_rules.append((X, Y, (sup_xy, conf, lift, lev, jacc, conv, odds)))
                 else:
                     if len(X) >= 2:
                         W_sets = getSubsets(X)
@@ -82,11 +131,18 @@ def getSubsets(set):
 
     return subsets
 
+
+#GROUP IT ALL TOGETHER
 def getStrongRulesForDatabase(db, minsup, minconf):
     fsets = eclat(db, minsup)
-    strong_rules = getStrongRulesFromFrequentSets(fsets, minconf)
+
+    len_data = len(db)
+
+    strong_rules = getStrongRulesFromFrequentSets(fsets, minconf, len_data)
     return strong_rules
 
+
+#RECOMMENDER
 class Recommender:
     """
         This is the class to make recommendations.
@@ -105,20 +161,17 @@ class Recommender:
             :return: the object should return itself here (this is actually important!)
         """
         
-        rules_db = getStrongRulesForDatabase(db=database, minsup=0.003*len(database), minconf=0.1)
-        premises, conclusions, sup, conf, lift, conviction = [], [], [], [], [], []
+        rules_db = getStrongRulesForDatabase(db=database, minsup=0.002*len(database), minconf=0.1)
+        premises, conclusions, metrics = [], [], []
 
         for rule in rules_db:
             premises.append(tuple(rule[0]))
             conclusions.append(tuple(rule[1]))
-            sup.append(rule[2])
-            conf.append(rule[3])
-            lift.append(rule[4])
-            conviction.append(rule[5])
+            metrics.append(rule[2])
         
         temp_rules = list(zip(premises,conclusions))
         for i, rule in enumerate(temp_rules):
-            self.rules[rule] = (sup[i], conf[i], lift[i], conviction[i])
+            self.rules[rule] = metrics[i]
 
         for i, price in enumerate(prices):
             self.prices[i] = price
@@ -144,14 +197,16 @@ class Recommender:
         possible_recommendations = []
         for i, premise in enumerate(premises):
             if (all(x in cart for x in premise)):
-                possible_recommendations.append((conclussions[i], self.rules[(tuple(premise), tuple(conclussions[i]))][2]))
+                rule = (tuple(premise), tuple(conclussions[i]))
+                metrics = self.rules[rule]
+                total_score = sum(metrics) / len(metrics)
+
+                possible_recommendations.append((conclussions[i], total_score))
         possible_recommendations = sorted(possible_recommendations, key=lambda x:x[1])
 
         #Gets the (at least) 10 best items according to our evaluation and sorts them by price
         best_recommendations = []
         best_recommendations_prices = []
-
-        print(possible_recommendations[-20:])
 
         for i in range(len(possible_recommendations)):
             if len(best_recommendations) >= 10:
