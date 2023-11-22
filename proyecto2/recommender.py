@@ -1,3 +1,6 @@
+import numpy as np
+from scipy.optimize import minimize
+
 #GET FREQUENT ITEMSETS
 def eclat(db, minsup):
     def generate_frequent_itemsets(P, minsup, F):
@@ -142,6 +145,11 @@ def getStrongRulesForDatabase(db, minsup, minconf):
     return strong_rules
 
 
+#PROMEDIO PONDERADO
+def calculate_weighted_score(sup, conf, lift, lev, jacc, conv, odds, weights):
+    total_score = np.average([sup, conf, lift, lev, jacc, conv, odds,], weights=weights, axis=0)
+    return total_score
+
 #RECOMMENDER
 class Recommender:
     """
@@ -151,6 +159,7 @@ class Recommender:
     def __init__(self):
         self.rules = {}
         self.prices = {}
+        self.weights = [1,3,3.5,3.5,4,6,8]
 
 
     def train(self, prices, database) -> None:
@@ -168,7 +177,23 @@ class Recommender:
             premises.append(tuple(rule[0]))
             conclusions.append(tuple(rule[1]))
             metrics.append(rule[2])
-        
+
+        normalized_metrics = []
+        grouped_metrics = ()
+        for i in range(len(metrics[0])):
+            metric = [x[i] for x in metrics]
+            grouped_metrics = grouped_metrics + (metric,)
+            min_metric = min(metric)
+            max_metric = max(metric)
+                
+            normalized_metric = []
+            for meassure in metric:
+                normalized_meassure = (meassure - min_metric) / (max_metric - min_metric)
+                normalized_metric.append(normalized_meassure)
+            normalized_metrics.append(normalized_metric)
+
+        metrics = list(zip(*normalized_metrics))
+
         temp_rules = list(zip(premises,conclusions))
         for i, rule in enumerate(temp_rules):
             self.rules[rule] = metrics[i]
@@ -199,17 +224,18 @@ class Recommender:
             if (all(x in cart for x in premise)):
                 rule = (tuple(premise), tuple(conclussions[i]))
                 metrics = self.rules[rule]
-                total_score = sum(metrics) / len(metrics)
+                
+                total_score = calculate_weighted_score(metrics[0], metrics[1], metrics[2],metrics[3],metrics[4],metrics[5],metrics[6],self.weights)
 
                 possible_recommendations.append((conclussions[i], total_score))
         possible_recommendations = sorted(possible_recommendations, key=lambda x:x[1])
 
-        #Gets the (at least) 10 best items according to our evaluation and sorts them by price
+        #Gets 0.4 of the total best items according to our evaluation and sorts them by price
         best_recommendations = []
         best_recommendations_prices = []
 
         for i in range(len(possible_recommendations)):
-            if len(best_recommendations) >= 10:
+            if len(best_recommendations) >= max_recommendations + 0.4 * len(self.prices):
                 break
             
             #Add the items in the best rule
