@@ -177,24 +177,6 @@ class Recommender:
             conclusions.append(tuple(rule[1]))
             metrics.append(rule[2])
 
-        '''
-        normalized_metrics = []
-        grouped_metrics = ()
-        for i in range(len(metrics[0])):
-            metric = [x[i] for x in metrics]
-            grouped_metrics = grouped_metrics + (metric,)
-            min_metric = min(metric)
-            max_metric = max(metric)
-                
-            normalized_metric = []
-            for meassure in metric:
-                normalized_meassure = (meassure - min_metric) / (max_metric - min_metric)
-                normalized_metric.append(normalized_meassure)
-            normalized_metrics.append(normalized_metric)
-
-        metrics = list(zip(*normalized_metrics))
-        '''
-        
         temp_rules = list(zip(premises,conclusions))
         for i, rule in enumerate(temp_rules):
             self.rules[rule] = metrics[i]
@@ -222,7 +204,15 @@ class Recommender:
         #Gets only the conclusions in which the cart is a subset or equal to the premise
         possible_recommendations = []
         for i, premise in enumerate(premises):
-            if (all(x in cart for x in premise)):
+            perCounter = 0
+            for item in premise:
+                if item in cart:
+                    perCounter += 1
+            
+            list_percentage = perCounter / float(len(premise))
+            list_percentage = list_percentage * 100
+
+            if list_percentage > 75:
                 rule = (tuple(premise), tuple(conclussions[i]))
                 metrics = self.rules[rule]
                 
