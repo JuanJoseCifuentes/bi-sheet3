@@ -113,7 +113,7 @@ def getStrongRulesFromFrequentSets(fsets, minconf, len_database):
                     conv = getConviction(conf, sup_y, len_database)
                     odds = getOddsRatio(sup_xy, sup_x, sup_y, len_database)
 
-                    strong_rules.append((X, Y, (sup_xy, conf, lift, lev, jacc, conv, odds)))
+                    strong_rules.append((X, Y, (conf, lift, lev, jacc, conv, odds)))
                 else:
                     if len(X) >= 2:
                         W_sets = getSubsets(X)
@@ -146,8 +146,8 @@ def getStrongRulesForDatabase(db, minsup, minconf):
 
 
 #PROMEDIO PONDERADO
-def calculate_weighted_score(sup, conf, lift, lev, jacc, conv, odds, weights):
-    total_score = np.average([sup, conf, lift, lev, jacc, conv, odds,], weights=weights, axis=0)
+def calculate_weighted_score(conf, lift, lev, jacc, conv, odds, weights):
+    total_score = np.average([conf, lift, lev, jacc, conv, odds,], weights=weights, axis=0)
     return total_score
 
 #RECOMMENDER
@@ -159,7 +159,7 @@ class Recommender:
     def __init__(self):
         self.rules = {}
         self.prices = {}
-        self.weights = [1,3,3.5,3.5,4,6,8]
+        self.weights = [3,3.5,3.5,4,6,8]
 
 
     def train(self, prices, database) -> None:
@@ -225,7 +225,7 @@ class Recommender:
                 rule = (tuple(premise), tuple(conclussions[i]))
                 metrics = self.rules[rule]
                 
-                total_score = calculate_weighted_score(metrics[0], metrics[1], metrics[2],metrics[3],metrics[4],metrics[5],metrics[6],self.weights)
+                total_score = calculate_weighted_score(metrics[0], metrics[1], metrics[2],metrics[3],metrics[4],metrics[5],self.weights)
 
                 possible_recommendations.append((conclussions[i], total_score))
         possible_recommendations = sorted(possible_recommendations, key=lambda x:x[1])
